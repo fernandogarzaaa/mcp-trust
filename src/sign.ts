@@ -31,6 +31,20 @@ import { join } from "node:path";
 import type { TrustReport } from "./report.js";
 
 export const BADGE_TYPE = "mcp-trust-badge/v1";
+export const REVOCATION_TYPE = "mcp-trust-revocation/v1";
+
+/**
+ * The exact installable artifact a badge was scanned from. Recorded so
+ * `trustscan pin` / `trustscan install` can reproduce the verified install.
+ */
+export interface BadgeArtifact {
+	/** npm: registry package; git: repository; local: scanned in place. */
+	readonly type: "npm" | "git" | "local";
+	/** npm: "name@version"; git: the clone URL; local: "local". */
+	readonly spec: string;
+	/** npm dist.integrity ("sha512-...") when the registry provided it. */
+	readonly integrity?: string;
+}
 
 export interface TrustBadge {
 	readonly type: typeof BADGE_TYPE;
@@ -52,6 +66,26 @@ export interface TrustBadge {
 	/** Embedded Ed25519 public key (JWK) so verification is self-contained. */
 	readonly publicKey: Record<string, unknown>;
 	readonly issuedAt: string;
+	/** Exact installable artifact, when the scan target resolved to one. */
+	readonly artifact?: BadgeArtifact;
+	readonly signature: string;
+}
+
+/**
+ * A signed statement that a badge version must no longer be trusted.
+ * Signed by the project maintainer key; the index publishes the project
+ * public key at keys/project.json so anyone can check.
+ */
+export interface TrustRevocation {
+	readonly type: typeof REVOCATION_TYPE;
+	readonly server: string;
+	readonly version: string;
+	readonly status: "revoked";
+	readonly reason: string;
+	readonly revokedAt: string;
+	readonly keyId: string;
+	/** Embedded Ed25519 public key (JWK); must be the project key. */
+	readonly publicKey: Record<string, unknown>;
 	readonly signature: string;
 }
 
@@ -231,6 +265,10 @@ export function signBadge(report: TrustReport, keyPath?: string): TrustBadge {
 		keyId: stored.keyId,
 		publicKey: publicJwk,
 		issuedAt: new Date().toISOString(),
+		// Only present when defined: canonicalize() renders undefined as
+		// null, which would not round-trip through JSON and would break
+		// the signature on verify.
+		...(report.artifact ? { artifact: report.artifact } : {}),
 	};
 	const signature = cryptoSign(
 		null,
@@ -304,4 +342,134 @@ export function verifyBadge(badge: TrustBadge): VerifyResult {
 /** Recompute what the evalHash should be for a report (for cross-checking). */
 export function evalHashForReport(report: TrustReport): string {
 	return sha256Hex(canonicalize(scoredContent(report)));
+}
+
+/**
+ * Sign a revocation for a badge version. The signer must be the project
+ * maintainer: the index only accepts revocations whose key matches
+ * keys/project.json.
+ */
+export function signRevocation(args: {
+	server: string;
+	version: string;
+	reason: string;
+	keyPath?: string;
+}): TrustRevocation {
+	const server = args.server.trim();
+	const version = args.version.trim();
+	const reason = args.reason.trim();
+	if (!server) throw new Error("revoke needs a non-empty --server");
+	if (!version) throw new Error("revoke needs a non-empty --version");
+	if (!reason) throw new Error("revoke needs a non-empty --reason");
+
+	const stored = loadPrivateKeyFile(args.keyPath ?? defaultPrivateKeyPath());
+	const privateKey = createPrivateKey({
+		key: stored.privateKey as never,
+		format: "jwk",
+	});
+	const publicKey = createPublicKey(privateKey);
+	const publicJwk = publicKey.export({ format: "jwk" }) as unknown as Record<
+		string,
+		unknown
+	>;
+
+	const revocation: Omit<TrustRevocation, "signature"> = {
+		type: REVOCATION_TYPE,
+		server,
+		version,
+		status: "revoked",
+		reason,
+		revokedAt: new Date().toISOString(),
+		keyId: stored.keyId,
+		publicKey: publicJwk,
+	};
+	const signature = cryptoSign(
+		null,
+		Buffer.from(canonicalize(revocation), "utf8"),
+		privateKey,
+	);
+	return { ...revocation, signature: signature.toString("base64") };
+}
+
+export interface RevocationCheck {
+	readonly ok: boolean;
+	readonly reason: string;
+}
+
+/**
+ * Verify a revocation against the expected maintainer key id. Checks the
+ * type, that the embedded key is the expected maintainer key, and the
+ * Ed25519 signature.
+ */
+export function verifyRevocation(
+	revocation: TrustRevocation,
+	expectedKeyId: string,
+): RevocationCheck {
+	if (!revocation || revocation.type !== REVOCATION_TYPE) {
+		return { ok: false, reason: "not a mcp-trust revocation (bad type field)" };
+	}
+	if (revocation.status !== "revoked") {
+		return { ok: false, reason: 'revocation status must be "revoked"' };
+	}
+	if (
+		!revocation.publicKey ||
+		typeof revocation.publicKey !== "object" ||
+		typeof revocation.signature !== "string" ||
+		revocation.signature.length === 0
+	) {
+		return {
+			ok: false,
+			reason: "revocation is missing its public key or signature",
+		};
+	}
+	if (revocation.keyId !== expectedKeyId) {
+		return {
+			ok: false,
+			reason: `revocation keyId "${revocation.keyId}" is not the project key ("${expectedKeyId}")`,
+		};
+	}
+	const expectedEmbedded = sha256Hex(canonicalize(revocation.publicKey)).slice(
+		0,
+		16,
+	);
+	if (revocation.keyId !== expectedEmbedded) {
+		return {
+			ok: false,
+			reason: "revocation keyId does not match its embedded public key",
+		};
+	}
+	const { signature, ...unsigned } = revocation;
+	let publicKey: ReturnType<typeof createPublicKey>;
+	try {
+		publicKey = createPublicKey({
+			key: revocation.publicKey as never,
+			format: "jwk",
+		});
+	} catch (error) {
+		return {
+			ok: false,
+			reason: `embedded public key is invalid: ${error instanceof Error ? error.message : String(error)}`,
+		};
+	}
+	let signatureOk = false;
+	try {
+		signatureOk = cryptoVerify(
+			null,
+			Buffer.from(canonicalize(unsigned), "utf8"),
+			publicKey,
+			Buffer.from(signature, "base64"),
+		);
+	} catch (error) {
+		return {
+			ok: false,
+			reason: `signature check threw: ${error instanceof Error ? error.message : String(error)}`,
+		};
+	}
+	if (!signatureOk) {
+		return {
+			ok: false,
+			reason: "signature does not verify against the embedded public key",
+		};
+	}
+	return { ok: true, reason: "revocation signature valid" };
 }

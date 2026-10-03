@@ -17,8 +17,16 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveArtifact } from "./artifact.js";
 import { evaluateMcpServer } from "./behavioral/index.js";
 import { INDEX_REPO, publishBadge } from "./publish.js";
+import {
+	type IndexManifest,
+	type ManifestBadge,
+	fetchManifest,
+	installCommandFor,
+	resolvePin,
+} from "./registry.js";
 import {
 	RISK_LEVELS,
 	type RiskLevel,
@@ -26,7 +34,15 @@ import {
 	renderHumanSummary,
 } from "./report.js";
 import { type TargetKind, classifyTarget, resolveTarget } from "./resolve.js";
-import { type TrustBadge, keygen, signBadge, verifyBadge } from "./sign.js";
+import {
+	type TrustBadge,
+	type TrustRevocation,
+	keygen,
+	signBadge,
+	signRevocation,
+	verifyBadge,
+	verifyRevocation,
+} from "./sign.js";
 import { readManifest } from "./static/index.js";
 import { runStaticPass } from "./static/index.js";
 
@@ -66,14 +82,28 @@ Usage:
                       (implies --sign; needs the GitHub CLI, gh, authenticated)
 
   trustscan keygen [--out <dir>]      Generate an Ed25519 signing key.
-  trustscan verify <badge.json>      Verify a signed trust badge.
+  trustscan verify <badge.json> [--offline]
+      Verify a signed trust badge. Unless --offline, also checks the badge's
+      status (active / superseded / revoked) against the public trust index.
   trustscan publish --badge <file> [--repo <owner/repo>]
       Submit a signed badge to the public trust index
       (default repo: ${INDEX_REPO}) by opening a pull request.
       The badge is verified locally first; nothing is submitted when it
       is invalid. Needs the GitHub CLI (gh) installed and authenticated.
+  trustscan pin <server>[@<version>] [--index-url <url>]
+      Resolve the verified install for an indexed server. Prints the exact
+      install command for the newest active version (or the named version).
+      Refuses revoked versions; warns on superseded ones.
+  trustscan install <server>[@<version>] [--dry-run] [--index-url <url>]
+      Install the verified version (npm). Shows the badge summary first;
+      --dry-run prints the command without running it.
+  trustscan revoke --server <s> --version <v> --reason <r>
+      --key <keyfile> [--out <file>]
+      Sign a badge revocation with the project maintainer key. Submit the
+      resulting JSON as revocations/<server>/<version>.json via PR.
 
-Exit codes: 0 passed the gate, 2 risk at/above --fail-on, 1 operational error.
+Exit codes: 0 passed the gate (or the command succeeded), 2 risk at/above --fail-on
+or a revoked badge on verify, 1 operational error.
 
 A passing scan is not a guarantee: static checks are heuristics with false
 positives, and the behavioral pass only exercises what it can reach.`);
@@ -207,6 +237,7 @@ async function cmdScan(rawArgs: string[]): Promise<number> {
 				(manifest.name
 					? { name: manifest.name, version: manifest.version ?? "unknown" }
 					: null),
+			artifact: await resolveArtifact(target, kind, resolved.dir),
 			static: staticReport,
 			behavioral,
 			behavioralError,
@@ -263,22 +294,252 @@ function cmdKeygen(rawArgs: string[]): number {
 	return 0;
 }
 
-function cmdVerify(rawArgs: string[]): number {
-	if (rawArgs.length !== 1 || !rawArgs[0]) {
+function cmdVerify(rawArgs: string[]): Promise<number> {
+	let badgePath: string | undefined;
+	let offline = false;
+	let indexUrl: string | undefined;
+	for (let i = 0; i < rawArgs.length; i++) {
+		const arg = rawArgs[i];
+		if (arg === "--offline") offline = true;
+		else if (arg === "--index-url") {
+			indexUrl = rawArgs[++i];
+			if (indexUrl === undefined) throw new Error("--index-url needs a URL");
+		} else if (arg?.startsWith("--")) {
+			throw new Error(`unknown flag ${arg}`);
+		} else if (badgePath === undefined) {
+			badgePath = arg;
+		} else {
+			throw new Error(`unexpected argument ${arg}`);
+		}
+	}
+	if (badgePath === undefined) {
 		throw new Error("verify needs a badge file: trustscan verify <badge.json>");
 	}
 	const badge = JSON.parse(
-		readFileSync(resolve(rawArgs[0]), "utf8"),
+		readFileSync(resolve(badgePath), "utf8"),
 	) as TrustBadge;
 	const result = verifyBadge(badge);
-	if (result.ok) {
-		console.log(
-			`valid badge: ${badge.server}@${badge.version} risk ${badge.riskScore}/100 (${badge.riskLevel}), key ${badge.keyId}`,
+	if (!result.ok) {
+		console.error(`invalid badge: ${result.reason}`);
+		return Promise.resolve(1);
+	}
+	console.log(
+		`valid badge: ${badge.server}@${badge.version} risk ${badge.riskScore}/100 (${badge.riskLevel}), key ${badge.keyId}`,
+	);
+	if (offline) return Promise.resolve(0);
+	// Index status check: revoked badges must not be trusted.
+	return (async () => {
+		let manifest: IndexManifest | undefined;
+		try {
+			manifest = await fetchManifest(indexUrl);
+		} catch (error) {
+			console.log(
+				`(trust index unreachable; local verification only: ${error instanceof Error ? error.message : String(error)})`,
+			);
+			return 0;
+		}
+		const entry = manifest.badges.find(
+			(b) => b.server === badge.server && b.version === badge.version,
 		);
+		if (!entry) {
+			console.log("(not indexed; local verification only)");
+			return 0;
+		}
+		if (entry.status === "revoked") {
+			const reason = entry.revocationReason
+				? `: ${entry.revocationReason}`
+				: "";
+			console.error(
+				`REVOKED: ${badge.server}@${badge.version} was revoked${reason}`,
+			);
+			return 2;
+		}
+		if (entry.status === "superseded") {
+			console.log(
+				`warning: ${badge.server}@${badge.version} is superseded by a newer indexed version`,
+			);
+		} else {
+			console.log(`indexed: status ${entry.status} on the public trust index`);
+		}
+		return 0;
+	})();
+}
+
+function parseServerAtVersion(raw: string): {
+	server: string;
+	version?: string;
+} {
+	const at = raw.lastIndexOf("@");
+	// A leading @ means an npm scope (e.g. @scope/name), not a version split.
+	if (at > 0) {
+		const server = raw.slice(0, at);
+		const version = raw.slice(at + 1);
+		if (!server || !version) {
+			throw new Error(`expected <server>[@<version>], got "${raw}"`);
+		}
+		return { server, version };
+	}
+	if (!raw) throw new Error("expected <server>[@<version>]");
+	return { server: raw };
+}
+
+function printPinResolution(
+	badge: ManifestBadge,
+	explicitVersion: boolean,
+): void {
+	const fc = badge.findingCounts;
+	console.log(`trustscan pin: ${badge.server}@${badge.version}`);
+	console.log(`  install:   ${installCommandFor(badge)}`);
+	const integrity = badge.artifact?.integrity;
+	console.log(`  integrity: ${integrity ?? "(not recorded)"}`);
+	console.log(
+		`  risk:      ${badge.riskScore}/100 (${badge.riskLevel}) — ${fc.critical} critical, ${fc.major} major, ${fc.minor} minor, ${fc.info} info`,
+	);
+	console.log(
+		`  key:       ${badge.keyId}, issued ${badge.issuedAt.slice(0, 10)}`,
+	);
+	console.log(`  status:    ${badge.status}`);
+	if (badge.status === "superseded" && explicitVersion) {
+		console.log(
+			"  warning: this version is superseded by a newer indexed version",
+		);
+	}
+}
+
+async function cmdPin(rawArgs: string[]): Promise<number> {
+	let target: string | undefined;
+	let indexUrl: string | undefined;
+	for (let i = 0; i < rawArgs.length; i++) {
+		const arg = rawArgs[i];
+		if (arg === "--index-url") {
+			indexUrl = rawArgs[++i];
+			if (indexUrl === undefined) throw new Error("--index-url needs a URL");
+		} else if (arg?.startsWith("--")) {
+			throw new Error(`unknown flag ${arg}`);
+		} else if (target === undefined) {
+			target = arg;
+		} else {
+			throw new Error(`unexpected argument ${arg}`);
+		}
+	}
+	if (target === undefined) {
+		throw new Error("pin needs a server: trustscan pin <server>[@<version>]");
+	}
+	const { server, version } = parseServerAtVersion(target);
+	const manifest = await fetchManifest(indexUrl);
+	const { badge, explicitVersion } = resolvePin(manifest, server, version);
+	printPinResolution(badge, explicitVersion);
+	return 0;
+}
+
+async function cmdInstall(rawArgs: string[]): Promise<number> {
+	let target: string | undefined;
+	let indexUrl: string | undefined;
+	let dryRun = false;
+	for (let i = 0; i < rawArgs.length; i++) {
+		const arg = rawArgs[i];
+		if (arg === "--index-url") {
+			indexUrl = rawArgs[++i];
+			if (indexUrl === undefined) throw new Error("--index-url needs a URL");
+		} else if (arg === "--dry-run") {
+			dryRun = true;
+		} else if (arg?.startsWith("--")) {
+			throw new Error(`unknown flag ${arg}`);
+		} else if (target === undefined) {
+			target = arg;
+		} else {
+			throw new Error(`unexpected argument ${arg}`);
+		}
+	}
+	if (target === undefined) {
+		throw new Error(
+			"install needs a server: trustscan install <server>[@<version>]",
+		);
+	}
+	const { server, version } = parseServerAtVersion(target);
+	const manifest = await fetchManifest(indexUrl);
+	const { badge, explicitVersion } = resolvePin(manifest, server, version);
+	printPinResolution(badge, explicitVersion);
+	const command = installCommandFor(badge);
+	if (dryRun) {
+		console.log(`dry run: would execute: ${command}`);
 		return 0;
 	}
-	console.error(`invalid badge: ${result.reason}`);
-	return 1;
+	const spec = badge.artifact?.spec;
+	if (!spec) throw new Error("resolved badge has no installable artifact");
+	console.log(`installing ${spec} ...`);
+	const { spawn } = await import("node:child_process");
+	await new Promise<void>((resolvePromise, reject) => {
+		const child = spawn("npm", ["install", "-g", spec], {
+			stdio: "inherit",
+		});
+		child.on("error", (error) => {
+			reject(new Error(`could not start npm: ${error.message}`));
+		});
+		child.on("close", (code) => {
+			if (code === 0) resolvePromise();
+			else reject(new Error(`npm install exited with code ${code}`));
+		});
+	});
+	console.log(`installed ${spec}`);
+	return 0;
+}
+
+function cmdRevoke(rawArgs: string[]): number {
+	let server: string | undefined;
+	let version: string | undefined;
+	let reason: string | undefined;
+	let keyPath: string | undefined;
+	let outPath: string | undefined;
+	for (let i = 0; i < rawArgs.length; i++) {
+		const arg = rawArgs[i];
+		if (arg === "--server") {
+			server = rawArgs[++i];
+			if (server === undefined) throw new Error("--server needs a value");
+		} else if (arg === "--version") {
+			version = rawArgs[++i];
+			if (version === undefined) throw new Error("--version needs a value");
+		} else if (arg === "--reason") {
+			reason = rawArgs[++i];
+			if (reason === undefined) throw new Error("--reason needs a value");
+		} else if (arg === "--key") {
+			keyPath = rawArgs[++i];
+			if (keyPath === undefined) throw new Error("--key needs a path");
+		} else if (arg === "--out") {
+			outPath = rawArgs[++i];
+			if (outPath === undefined) throw new Error("--out needs a path");
+		} else {
+			throw new Error(`unknown flag ${arg}`);
+		}
+	}
+	if (!server || !version || !reason) {
+		throw new Error(
+			"revoke needs --server, --version, and --reason (and --key for the project maintainer key)",
+		);
+	}
+	const revocation: TrustRevocation = signRevocation({
+		server,
+		version,
+		reason,
+		keyPath,
+	});
+	// Sanity: the revocation must verify against its own key before we emit it.
+	const check = verifyRevocation(revocation, revocation.keyId);
+	if (!check.ok) {
+		throw new Error(`revocation failed self-check: ${check.reason}`);
+	}
+	const json = `${JSON.stringify(revocation, null, 2)}\n`;
+	if (outPath) {
+		const dest = resolve(outPath);
+		writeFileSync(dest, json);
+		console.log(`revocation written to ${dest}`);
+	} else {
+		console.log(json);
+	}
+	console.log(
+		`next: open a PR adding revocations/${server}/${version}.json to ${INDEX_REPO}; CI validates the project-key signature`,
+	);
+	return 0;
 }
 
 async function cmdPublish(rawArgs: string[]): Promise<number> {
@@ -313,9 +574,15 @@ async function main(): Promise<number> {
 			case "keygen":
 				return cmdKeygen(rest);
 			case "verify":
-				return cmdVerify(rest);
+				return await cmdVerify(rest);
 			case "publish":
 				return await cmdPublish(rest);
+			case "pin":
+				return await cmdPin(rest);
+			case "install":
+				return await cmdInstall(rest);
+			case "revoke":
+				return cmdRevoke(rest);
 			case "--help":
 			case "-h":
 			case undefined:

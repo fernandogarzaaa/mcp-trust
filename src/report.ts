@@ -14,6 +14,7 @@
 
 import type { BehavioralReport } from "./behavioral/index.js";
 import type { TargetKind } from "./resolve.js";
+import type { BadgeArtifact } from "./sign.js";
 import type { StaticReport } from "./static/index.js";
 
 export type RiskLevel = "low" | "medium" | "high" | "critical";
@@ -38,6 +39,8 @@ export interface TrustReport {
 	readonly target: string;
 	readonly targetKind: TargetKind;
 	readonly server: { readonly name: string; readonly version: string } | null;
+	/** Exact installable artifact, when the target resolved to one. */
+	readonly artifact: BadgeArtifact | null;
 	readonly riskScore: number;
 	readonly riskLevel: RiskLevel;
 	readonly counts: FindingCounts;
@@ -86,6 +89,7 @@ export function assembleReport(args: {
 	target: string;
 	targetKind: TargetKind;
 	server: { readonly name: string; readonly version: string } | null;
+	artifact?: BadgeArtifact | null;
 	static: StaticReport;
 	behavioral: BehavioralReport | null;
 	behavioralError: string | null;
@@ -101,6 +105,7 @@ export function assembleReport(args: {
 		target: args.target,
 		targetKind: args.targetKind,
 		server: args.server,
+		artifact: args.artifact ?? null,
 		riskScore: score,
 		riskLevel: level,
 		counts,
