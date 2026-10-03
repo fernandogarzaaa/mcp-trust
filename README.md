@@ -1,5 +1,7 @@
 # mcp-trust
 
+[![ci](https://github.com/fernandogarzaaa/mcp-trust/actions/workflows/ci.yml/badge.svg)](https://github.com/fernandogarzaaa/mcp-trust/actions/workflows/ci.yml)
+
 Trust scanning for MCP servers: static heuristics plus behavioral evals, with signed version-pinned trust badges. The place you check before you install an MCP server.
 
 Existing scanners audit code statically. mcp-trust adds what they do not: it **runs the server** (schema, conformance, and seeded fuzz oracles ported from [EVE](https://github.com/fernandogarzaaa/experience-validation-engine)'s mcp-eval harness) and publishes the result as a **signed, version-pinned badge** anyone can verify without key management.
@@ -7,6 +9,8 @@ Existing scanners audit code statically. mcp-trust adds what they do not: it **r
 ## Install
 
 Requires Node.js 20 or later.
+
+> **Note:** `mcp-trust` is not published to npm yet. The commands below show the intended install path; until release, run from source.
 
 ```bash
 npm install -g mcp-trust
@@ -22,6 +26,27 @@ cd mcp-trust
 npm install
 npm run build
 node dist/cli.js scan ./my-server
+```
+
+## Quickstart
+
+Check a server before you install it, using the public trust index:
+
+```bash
+# See the verified install for a server (newest active version)
+trustscan pin @modelcontextprotocol/server-filesystem
+# Pin an exact version
+trustscan pin @modelcontextprotocol/server-filesystem@2025.1.0
+# Install the verified version (shows the badge first)
+trustscan install @modelcontextprotocol/server-filesystem --dry-run
+```
+
+Scan a server yourself and publish the badge:
+
+```bash
+trustscan scan ./my-server --sign --badge-out my-server.trust.json
+trustscan verify my-server.trust.json
+trustscan publish --badge my-server.trust.json
 ```
 
 ## Usage
@@ -47,17 +72,35 @@ trustscan verify server.trust.json
 trustscan publish --badge server.trust.json
 # or scan, sign, and publish in one step
 trustscan scan ./my-mcp-server --sign --publish
+
+# Resolve the verified install from the public index
+trustscan pin my-server@1.2.3
+trustscan pin my-server              # newest active (non-revoked) version
+# Install the verified version (npm); shows the badge summary first
+trustscan install my-server@1.2.3
+trustscan install my-server --dry-run   # preview only
+
+# Revoke a badge version (project maintainer key)
+trustscan revoke --server my-server --version 1.2.3 \
+  --reason "Signer key compromised" \
+  --key ~/.config/mcp-trust/project/key.priv.json \
+  --out revocation.json
+# then open a PR adding revocations/my-server/1.2.3.json
 ```
 
 Options for `scan`: `--json`, `--sign`, `--key <path>`, `--badge-out <path>`, `--publish`, `--fail-on <low|medium|high|critical>`, `--no-fuzz`, `--skip-audit`, `--timeout <ms>`.
 
-Exit codes: `0` passed the gate, `2` risk at or above `--fail-on`, `1` operational error.
+`verify` also checks the badge against the public trust index (use `--offline` to skip): revoked badges exit 2 with the reason, superseded ones warn.
+
+Exit codes: `0` passed the gate (or the command succeeded), `2` risk at or above `--fail-on` or a revoked badge on verify, `1` operational error.
 
 ## Trust Index
 
 Badges are more useful in public. The [mcp-trust-index](https://github.com/fernandogarzaaa/mcp-trust-index) is a git-backed public registry of signed badges at `badges/<server>/<version>.json`, browsable at <https://fernandogarzaaa.github.io/mcp-trust-index/>.
 
 `trustscan publish --badge <file>` verifies the badge locally first, then opens a pull request against the index (needs the GitHub CLI, `gh`, installed and authenticated). CI checks every submitted badge: JSON schema, Ed25519 signature against the embedded public key, correct `badges/<server>/<version>.json` placement, and no duplicate versions. The index is append-only per version: a new scan of a new version adds a new file.
+
+Each badge carries a derived **status**: `active` (newest indexed version), `superseded` (an older version), or `revoked` (the project maintainer published a signed revocation at `revocations/<server>/<version>.json`). `trustscan pin` refuses revoked versions, and `trustscan verify` reports the status from the index.
 
 A badge attests to the exact version scanned, nothing more. Trust in the signer (the key id) is out of band, like a PGP key id: the index proves a badge is intact and well-formed, not that its signer is honest.
 
