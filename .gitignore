@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.DS_Store
+# local scan workdirs (tests and ad-hoc runs)
+/tmp/
+.trustscan/
+# local key material (never commit private keys)
+*.priv.json

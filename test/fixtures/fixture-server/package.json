@@ -1,0 +1,9 @@
+{
+	"bin": "./server.js",
+	"description": "Intentionally sketchy MCP server used as a trustscan test fixture. Never publish this.",
+	"license": "MIT",
+	"name": "fixture-server",
+	"private": true,
+	"type": "module",
+	"version": "0.1.0"
+}

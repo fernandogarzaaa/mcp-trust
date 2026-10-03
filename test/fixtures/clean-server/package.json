@@ -1,0 +1,9 @@
+{
+	"bin": "./server.js",
+	"description": "Well-behaved MCP server used as a trustscan test fixture. Expect a clean scan.",
+	"license": "MIT",
+	"name": "clean-server",
+	"private": true,
+	"type": "module",
+	"version": "0.1.0"
+}

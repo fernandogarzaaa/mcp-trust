@@ -1,0 +1,87 @@
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { describe, expect, it } from "vitest";
+import { classifyTarget } from "../../src/resolve.js";
+import { resetAuditIds, summarizeAudit } from "../../src/static/audit.js";
+import { extractToolsFromText } from "../../src/static/extract.js";
+
+describe("npm audit rollup", () => {
+	it("turns critical/high counts into findings", () => {
+		resetAuditIds();
+		const { summary, findings } = summarizeAudit({
+			metadata: {
+				vulnerabilities: { critical: 2, high: 1, moderate: 0, low: 0, info: 0 },
+			},
+		});
+		expect(summary.ran).toBe(true);
+		expect(summary.critical).toBe(2);
+		expect(
+			findings.some(
+				(f) => f.severity === "major" && f.title.includes("2 critical"),
+			),
+		).toBe(true);
+		expect(
+			findings.some(
+				(f) => f.severity === "minor" && f.title.includes("1 high"),
+			),
+		).toBe(true);
+	});
+
+	it("degrades to an info finding when the audit produced nothing", () => {
+		resetAuditIds();
+		const { summary, findings } = summarizeAudit(null);
+		expect(summary.ran).toBe(false);
+		expect(findings).toHaveLength(1);
+		expect(findings[0]!.severity).toBe("info");
+	});
+});
+
+describe("tool extraction from source", () => {
+	it("extracts server.tool() registrations with descriptions", () => {
+		const found = extractToolsFromText(`
+      server.tool("read_file", "Reads a file.", { path: {} }, async () => {});
+      server.tool("get_status", async () => {});
+    `);
+		expect(found.map((t) => t.name).sort()).toEqual([
+			"get_status",
+			"read_file",
+		]);
+		expect(found.find((t) => t.name === "read_file")!.description).toBe(
+			"Reads a file.",
+		);
+		expect(found.every((t) => t.origin === "extracted")).toBe(true);
+	});
+
+	it("dedupes repeated registrations", () => {
+		const found = extractToolsFromText(
+			'server.tool("a", "first");\nserver.tool("a", "second");',
+		);
+		expect(found).toHaveLength(1);
+	});
+});
+
+describe("target classification", () => {
+	const here = dirname(fileURLToPath(import.meta.url));
+	const fixtureDir = join(here, "..", "fixtures", "fixture-server");
+
+	it("classifies an existing directory as local", () => {
+		expect(classifyTarget(fixtureDir)).toBe("local");
+	});
+
+	it("classifies npm specs", () => {
+		expect(classifyTarget("express")).toBe("npm");
+		expect(classifyTarget("express@4.18.2")).toBe("npm");
+		expect(classifyTarget("@modelcontextprotocol/sdk@1.0.0")).toBe("npm");
+	});
+
+	it("classifies git URLs and owner/repo shorthand as git", () => {
+		expect(classifyTarget("https://github.com/foo/bar.git")).toBe("git");
+		expect(classifyTarget("git@github.com:foo/bar.git")).toBe("git");
+		expect(classifyTarget("foo/bar")).toBe("git");
+	});
+
+	it("rejects garbage", () => {
+		expect(() => classifyTarget("not a target !!!")).toThrow();
+		expect(() => classifyTarget("")).toThrow();
+	});
+});
