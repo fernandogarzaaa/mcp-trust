@@ -255,8 +255,16 @@ export function signBadge(report: TrustReport, keyPath?: string): TrustBadge {
 	const badge: Omit<TrustBadge, "signature"> = {
 		type: BADGE_TYPE,
 		server: report.server?.name ?? report.static.packageName ?? report.target,
+		// For npm artifacts, use the exact version from the install spec, not
+		// the server's self-reported protocol version (they often differ).
 		version:
-			report.server?.version ?? report.static.packageVersion ?? "unknown",
+			report.artifact?.type === "npm"
+				? report.artifact.spec.slice(
+						report.artifact.spec.lastIndexOf("@") + 1,
+					)
+				: (report.server?.version ??
+					report.static.packageVersion ??
+					"unknown"),
 		riskScore: report.riskScore,
 		riskLevel: report.riskLevel,
 		scores,
