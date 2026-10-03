@@ -90,6 +90,27 @@ async function fetchNpm(target: string): Promise<ResolvedTarget> {
 			timeout: 60_000,
 		},
 	);
+	// Install production dependencies so the behavioral pass can actually
+	// launch the server. Without this, packed servers fail to start with
+	// missing-module errors and the scan degrades to static-only.
+	// Best-effort: if install fails, the behavioral pass reports it honestly.
+	try {
+		await execFileAsync(
+			"npm",
+			[
+				"install",
+				"--omit=dev",
+				"--ignore-scripts",
+				"--legacy-peer-deps",
+				"--no-audit",
+				"--no-fund",
+				"--loglevel=error",
+			],
+			{ cwd: outdir, timeout: 300_000, maxBuffer: 64 * 1024 * 1024 },
+		);
+	} catch {
+		// The behavioral pass will fail gracefully and say so in the report.
+	}
 	return {
 		kind: "npm",
 		dir: outdir,
@@ -157,7 +178,10 @@ export function listSourceFiles(root: string): string[] {
 		".git",
 		"coverage",
 		".turbo",
+		"__tests__",
+		"__test__",
 	]);
+	const skipFile = /(\.test\.|\.spec\.)(js|mjs|cjs|ts|mts|cts|jsx|tsx|py)$/;
 	const walk = (dir: string): void => {
 		let entries: string[];
 		try {
@@ -169,6 +193,9 @@ export function listSourceFiles(root: string): string[] {
 			if (name.startsWith(".") && name !== ".") {
 				if (name === ".git") continue;
 			}
+			// Skip test directories entirely: fixtures and dummy credentials
+			// in tests are a top source of false positives.
+			if (name === "test" || name === "tests") continue;
 			const full = join(dir, name);
 			let isDir = false;
 			try {
@@ -179,6 +206,7 @@ export function listSourceFiles(root: string): string[] {
 			if (isDir) {
 				if (!skip.has(name)) walk(full);
 			} else if (/\.(js|mjs|cjs|ts|mts|cts|jsx|tsx|py)$/.test(name)) {
+				if (skipFile.test(full)) continue;
 				out.push(full);
 			}
 		}
