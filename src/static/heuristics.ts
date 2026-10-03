@@ -112,10 +112,10 @@ const PATTERNS: readonly Pattern[] = [
 	},
 	{
 		id: "egress-env-exfil",
-		severity: "major",
+		severity: "minor",
 		title: "Environment values flow toward a network call in the same file",
 		description:
-			"The file both reads process.env and makes network calls: a possible credential-exfiltration path. Heuristic; confirm by reading the code.",
+			"The file both reads process.env and makes network calls: a possible credential-exfiltration path. This is normal for API-client servers, so it is minor; confirm by reading the code.",
 		test: /__NEVER_MATCHES__/,
 		skipLine: COMMENT_LINE,
 	},
