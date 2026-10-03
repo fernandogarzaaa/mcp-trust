@@ -42,11 +42,24 @@ trustscan scan ./my-mcp-server --json
 trustscan keygen
 trustscan scan ./my-mcp-server --sign --badge-out server.trust.json
 trustscan verify server.trust.json
+
+# Publish a badge to the public trust index (opens a pull request)
+trustscan publish --badge server.trust.json
+# or scan, sign, and publish in one step
+trustscan scan ./my-mcp-server --sign --publish
 ```
 
-Options for `scan`: `--json`, `--sign`, `--key <path>`, `--badge-out <path>`, `--fail-on <low|medium|high|critical>`, `--no-fuzz`, `--skip-audit`, `--timeout <ms>`.
+Options for `scan`: `--json`, `--sign`, `--key <path>`, `--badge-out <path>`, `--publish`, `--fail-on <low|medium|high|critical>`, `--no-fuzz`, `--skip-audit`, `--timeout <ms>`.
 
 Exit codes: `0` passed the gate, `2` risk at or above `--fail-on`, `1` operational error.
+
+## Trust Index
+
+Badges are more useful in public. The [mcp-trust-index](https://github.com/fernandogarzaaa/mcp-trust-index) is a git-backed public registry of signed badges at `badges/<server>/<version>.json`, browsable at <https://fernandogarzaaa.github.io/mcp-trust-index/>.
+
+`trustscan publish --badge <file>` verifies the badge locally first, then opens a pull request against the index (needs the GitHub CLI, `gh`, installed and authenticated). CI checks every submitted badge: JSON schema, Ed25519 signature against the embedded public key, correct `badges/<server>/<version>.json` placement, and no duplicate versions. The index is append-only per version: a new scan of a new version adds a new file.
+
+A badge attests to the exact version scanned, nothing more. Trust in the signer (the key id) is out of band, like a PGP key id: the index proves a badge is intact and well-formed, not that its signer is honest.
 
 ## What it checks
 

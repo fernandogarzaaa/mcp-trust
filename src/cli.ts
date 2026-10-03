@@ -6,15 +6,19 @@
  *   trustscan scan <target> [options]   scan an MCP server
  *   trustscan keygen [--out <dir>]       generate an Ed25519 signing key
  *   trustscan verify <badge.json>        verify a signed trust badge
+ *   trustscan publish --badge <file>     submit a badge to the trust index
  *
  * Exit codes: 0 = scan passed the risk gate; 2 = risk at or above --fail-on;
  * 1 = operational error (bad args, unresolvable target, IO failure).
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { evaluateMcpServer } from "./behavioral/index.js";
+import { INDEX_REPO, publishBadge } from "./publish.js";
 import {
 	RISK_LEVELS,
 	type RiskLevel,
@@ -58,9 +62,16 @@ Usage:
     --no-fuzz         skip the fuzz oracle in the behavioral pass
     --skip-audit      skip the npm audit in the static pass
     --timeout <ms>    per-call timeout for the behavioral pass (default 5000)
+    --publish         submit the signed badge to the public trust index
+                      (implies --sign; needs the GitHub CLI, gh, authenticated)
 
   trustscan keygen [--out <dir>]      Generate an Ed25519 signing key.
   trustscan verify <badge.json>      Verify a signed trust badge.
+  trustscan publish --badge <file> [--repo <owner/repo>]
+      Submit a signed badge to the public trust index
+      (default repo: ${INDEX_REPO}) by opening a pull request.
+      The badge is verified locally first; nothing is submitted when it
+      is invalid. Needs the GitHub CLI (gh) installed and authenticated.
 
 Exit codes: 0 passed the gate, 2 risk at/above --fail-on, 1 operational error.
 
@@ -73,6 +84,7 @@ interface ScanOptions {
 	sign: boolean;
 	keyPath?: string;
 	badgeOut?: string;
+	publish: boolean;
 	failOn: RiskLevel;
 	fuzz: boolean;
 	skipAudit: boolean;
@@ -86,6 +98,7 @@ function parseScanArgs(args: string[]): {
 	const options: ScanOptions = {
 		json: false,
 		sign: false,
+		publish: false,
 		failOn: "high",
 		fuzz: true,
 		skipAudit: false,
@@ -113,7 +126,10 @@ function parseScanArgs(args: string[]): {
 			options.failOn = level;
 		} else if (arg === "--no-fuzz") options.fuzz = false;
 		else if (arg === "--skip-audit") options.skipAudit = true;
-		else if (arg === "--timeout") {
+		else if (arg === "--publish") {
+			options.publish = true;
+			options.sign = true;
+		} else if (arg === "--timeout") {
 			const rawMs = args[++i];
 			if (rawMs === undefined) throw new Error("--timeout needs a value");
 			const ms = Number(rawMs);
@@ -206,12 +222,21 @@ async function cmdScan(rawArgs: string[]): Promise<number> {
 		if (options.sign || options.badgeOut) {
 			const badge = signBadge(report, options.keyPath);
 			const badgeJson = JSON.stringify(badge, null, 2);
+			let badgePath: string | undefined;
 			if (options.badgeOut) {
-				writeFileSync(resolve(options.badgeOut), `${badgeJson}\n`);
-				if (!options.json)
-					console.log(`badge written to ${resolve(options.badgeOut)}`);
+				badgePath = resolve(options.badgeOut);
+				writeFileSync(badgePath, `${badgeJson}\n`);
+				if (!options.json) console.log(`badge written to ${badgePath}`);
+			} else if (options.publish) {
+				const dir = mkdtempSync(join(tmpdir(), "trustscan-badge-"));
+				badgePath = join(dir, "badge.json");
+				writeFileSync(badgePath, `${badgeJson}\n`);
 			} else {
 				console.log(badgeJson);
+			}
+			if (options.publish && badgePath) {
+				const result = await publishBadge(badgePath, {});
+				console.log(`badge submitted: ${result.prUrl}`);
 			}
 		}
 
@@ -256,6 +281,29 @@ function cmdVerify(rawArgs: string[]): number {
 	return 1;
 }
 
+async function cmdPublish(rawArgs: string[]): Promise<number> {
+	let badgePath: string | undefined;
+	let repo: string | undefined;
+	for (let i = 0; i < rawArgs.length; i++) {
+		const arg = rawArgs[i];
+		if (arg === "--badge") {
+			badgePath = rawArgs[++i];
+			if (badgePath === undefined) throw new Error("--badge needs a file");
+		} else if (arg === "--repo") {
+			repo = rawArgs[++i];
+			if (repo === undefined) throw new Error("--repo needs owner/repo");
+		} else throw new Error(`unknown flag ${arg}`);
+	}
+	if (badgePath === undefined) {
+		throw new Error(
+			"publish needs a badge file: trustscan publish --badge <file>",
+		);
+	}
+	const result = await publishBadge(badgePath, repo ? { repo } : {});
+	console.log(`badge submitted: ${result.prUrl}`);
+	return 0;
+}
+
 async function main(): Promise<number> {
 	const [, , command, ...rest] = process.argv;
 	try {
@@ -266,6 +314,8 @@ async function main(): Promise<number> {
 				return cmdKeygen(rest);
 			case "verify":
 				return cmdVerify(rest);
+			case "publish":
+				return await cmdPublish(rest);
 			case "--help":
 			case "-h":
 			case undefined:
