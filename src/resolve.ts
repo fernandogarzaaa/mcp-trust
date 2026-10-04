@@ -67,7 +67,7 @@ function makeTempDir(prefix: string): string {
 }
 
 async function fetchNpm(target: string): Promise<ResolvedTarget> {
-	const workdir = makeTempDir("trustscan-npm-");
+	const workdir = makeTempDir("sigil-npm-");
 	const { stdout } = await execFileAsync(
 		"npm",
 		["pack", target, "--pack-destination", workdir],
@@ -120,7 +120,7 @@ async function fetchNpm(target: string): Promise<ResolvedTarget> {
 }
 
 async function fetchGit(target: string): Promise<ResolvedTarget> {
-	const workdir = makeTempDir("trustscan-git-");
+	const workdir = makeTempDir("sigil-git-");
 	const url = /^[^/@\s]+\/[^/@\s]+$/.test(target)
 		? `https://github.com/${target}.git`
 		: target;

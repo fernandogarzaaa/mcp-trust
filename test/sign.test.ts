@@ -13,7 +13,7 @@ import {
 
 function minimalReport(overrides: Partial<TrustReport> = {}): TrustReport {
 	return {
-		tool: "mcp-trust",
+		tool: "sigil",
 		toolVersion: "0.1.0",
 		target: "fixture",
 		targetKind: "local",
@@ -57,7 +57,7 @@ function minimalReport(overrides: Partial<TrustReport> = {}): TrustReport {
 
 describe("Ed25519 badge signing", () => {
 	it("round-trips: keygen, sign, verify", () => {
-		const dir = mkdtempSync(join(tmpdir(), "trustscan-key-"));
+		const dir = mkdtempSync(join(tmpdir(), "sigil-key-"));
 		const { keyId, privatePath } = keygen(dir);
 		expect(keyId).toMatch(/^[0-9a-f]{16}$/);
 
@@ -72,7 +72,7 @@ describe("Ed25519 badge signing", () => {
 	});
 
 	it("rejects a tampered badge", () => {
-		const dir = mkdtempSync(join(tmpdir(), "trustscan-key-"));
+		const dir = mkdtempSync(join(tmpdir(), "sigil-key-"));
 		const { privatePath } = keygen(dir);
 		const badge = signBadge(minimalReport(), privatePath);
 		const tampered = { ...badge, riskScore: 100, riskLevel: "low" };
@@ -80,7 +80,7 @@ describe("Ed25519 badge signing", () => {
 	});
 
 	it("rejects a badge whose keyId does not match the embedded key", () => {
-		const dir = mkdtempSync(join(tmpdir(), "trustscan-key-"));
+		const dir = mkdtempSync(join(tmpdir(), "sigil-key-"));
 		const { privatePath } = keygen(dir);
 		const badge = signBadge(minimalReport(), privatePath);
 		const { keyId } = generateKeyPair();

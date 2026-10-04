@@ -143,12 +143,12 @@ export function summarizeAudit(json: AuditJson | null): {
 	return { summary, findings };
 }
 
-/** Run the audit and summarize it. Set MCP_TRUST_SKIP_AUDIT=1 to skip (tests). */
+/** Run the audit and summarize it. Set SIGIL_SKIP_AUDIT=1 to skip (tests). */
 export async function auditDependencies(dir: string): Promise<{
 	summary: DependencySummary;
 	findings: StaticFinding[];
 }> {
-	if (process.env.MCP_TRUST_SKIP_AUDIT === "1") {
+	if (process.env.SIGIL_SKIP_AUDIT === "1") {
 		return {
 			summary: {
 				ran: false,
@@ -157,7 +157,7 @@ export async function auditDependencies(dir: string): Promise<{
 				moderate: 0,
 				low: 0,
 				info: 0,
-				note: "skipped via MCP_TRUST_SKIP_AUDIT=1",
+				note: "skipped via SIGIL_SKIP_AUDIT=1",
 			},
 			findings: [],
 		};

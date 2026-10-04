@@ -3,13 +3,13 @@
  *
  * The manifest lives at the index Pages site and is rebuilt by CI on every
  * merge. Each entry carries the badge's install artifact and its derived
- * status (active / superseded / revoked), so `trustscan pin`, `install`,
+ * status (active / superseded / revoked), so `sigil pin`, `install`,
  * and `verify` can resolve and gate on indexed trust without cloning the
  * index repo.
  */
 
 export const INDEX_MANIFEST_URL =
-	"https://fernandogarzaaa.github.io/mcp-trust-index/index.json";
+	"https://fernandogarzaaa.github.io/sigil-index/index.json";
 
 export type BadgeStatus = "active" | "superseded" | "revoked";
 

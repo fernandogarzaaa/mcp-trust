@@ -1,6 +1,6 @@
 /**
  * Resolving the exact installable artifact for a scan target, so the badge
- * can record it and `trustscan pin` / `trustscan install` can reproduce the
+ * can record it and `sigil pin` / `sigil install` can reproduce the
  * verified install later.
  *
  * - npm: the registry spec "name@version" plus dist.integrity when the

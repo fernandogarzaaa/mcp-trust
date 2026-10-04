@@ -12,7 +12,7 @@
  *   finding list invalidates the badge.
  * - signature is Ed25519 over the canonical JSON of the badge minus the
  *   signature field.
- * - The badge embeds the signer's public key, so `trustscan verify` needs
+ * - The badge embeds the signer's public key, so `sigil verify` needs
  *   no key management: anyone can check the math. Trust in the *signer*
  *   (keyId) is out of band, like a PGP key id.
  */
@@ -30,12 +30,19 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { TrustReport } from "./report.js";
 
-export const BADGE_TYPE = "mcp-trust-badge/v1";
-export const REVOCATION_TYPE = "mcp-trust-revocation/v1";
+export const BADGE_TYPE = "sigil-badge/v1";
+export const REVOCATION_TYPE = "sigil-revocation/v1";
+/**
+ * Pre-rename type tags. Still accepted on verify so badges and revocations
+ * issued before the Sigil rename keep validating; new artifacts use the
+ * sigil-* types above.
+ */
+export const LEGACY_BADGE_TYPE = "mcp-trust-badge/v1";
+export const LEGACY_REVOCATION_TYPE = "mcp-trust-revocation/v1";
 
 /**
  * The exact installable artifact a badge was scanned from. Recorded so
- * `trustscan pin` / `trustscan install` can reproduce the verified install.
+ * `sigil pin` / `sigil install` can reproduce the verified install.
  */
 export interface BadgeArtifact {
 	/** npm: registry package; git: repository; local: scanned in place. */
@@ -47,7 +54,7 @@ export interface BadgeArtifact {
 }
 
 export interface TrustBadge {
-	readonly type: typeof BADGE_TYPE;
+	readonly type: typeof BADGE_TYPE | typeof LEGACY_BADGE_TYPE;
 	readonly server: string;
 	readonly version: string;
 	readonly riskScore: number;
@@ -77,7 +84,7 @@ export interface TrustBadge {
  * public key at keys/project.json so anyone can check.
  */
 export interface TrustRevocation {
-	readonly type: typeof REVOCATION_TYPE;
+	readonly type: typeof REVOCATION_TYPE | typeof LEGACY_REVOCATION_TYPE;
 	readonly server: string;
 	readonly version: string;
 	readonly status: "revoked";
@@ -134,7 +141,7 @@ export function generateKeyPair(): KeyPair {
 }
 
 export function defaultKeyDir(): string {
-	return join(homedir(), ".config", "mcp-trust");
+	return join(homedir(), ".config", "sigil");
 }
 
 export function defaultPrivateKeyPath(): string {
@@ -185,7 +192,7 @@ interface StoredPrivateKey {
 function loadPrivateKeyFile(path: string): StoredPrivateKey {
 	if (!existsSync(path)) {
 		throw new Error(
-			`no private key at ${path}: run "trustscan keygen" first, or pass --key <path>`,
+			`no private key at ${path}: run "sigil keygen" first, or pass --key <path>`,
 		);
 	}
 	const parsed: unknown = JSON.parse(readFileSync(path, "utf8"));
@@ -196,7 +203,7 @@ function loadPrivateKeyFile(path: string): StoredPrivateKey {
 		!(parsed as { privateKey?: unknown }).privateKey ||
 		typeof (parsed as { privateKey?: unknown }).privateKey !== "object"
 	) {
-		throw new Error(`private key file at ${path} is not a trustscan key file`);
+		throw new Error(`private key file at ${path} is not a sigil key file`);
 	}
 	return parsed as StoredPrivateKey;
 }
@@ -284,8 +291,11 @@ export function signBadge(report: TrustReport, keyPath?: string): TrustBadge {
 
 /** Verify a badge's evalHash and signature. Returns ok=false with a reason on any failure. */
 export function verifyBadge(badge: TrustBadge): VerifyResult {
-	if (!badge || badge.type !== BADGE_TYPE) {
-		return { ok: false, reason: "not a mcp-trust badge (bad type field)" };
+	if (
+		!badge ||
+		(badge.type !== BADGE_TYPE && badge.type !== LEGACY_BADGE_TYPE)
+	) {
+		return { ok: false, reason: "not a Sigil badge (bad type field)" };
 	}
 	if (
 		!badge.publicKey ||
@@ -409,8 +419,12 @@ export function verifyRevocation(
 	revocation: TrustRevocation,
 	expectedKeyId: string,
 ): RevocationCheck {
-	if (!revocation || revocation.type !== REVOCATION_TYPE) {
-		return { ok: false, reason: "not a mcp-trust revocation (bad type field)" };
+	if (
+		!revocation ||
+		(revocation.type !== REVOCATION_TYPE &&
+			revocation.type !== LEGACY_REVOCATION_TYPE)
+	) {
+		return { ok: false, reason: "not a Sigil revocation (bad type field)" };
 	}
 	if (revocation.status !== "revoked") {
 		return { ok: false, reason: 'revocation status must be "revoked"' };

@@ -27,7 +27,7 @@ describe("signRevocation / verifyRevocation", () => {
 			reason: "Signer key compromised.",
 			keyPath: privatePath,
 		});
-		expect(rev.type).toBe("mcp-trust-revocation/v1");
+		expect(rev.type).toBe("sigil-revocation/v1");
 		expect(rev.status).toBe("revoked");
 		expect(rev.server).toBe("demo-server");
 		const check = verifyRevocation(rev, rev.keyId);
@@ -92,6 +92,6 @@ describe("signRevocation / verifyRevocation", () => {
 				reason: "x",
 				keyPath: "/nonexistent/key.json",
 			}),
-		).toThrow(/run "trustscan keygen" first/);
+		).toThrow(/run "sigil keygen" first/);
 	});
 });

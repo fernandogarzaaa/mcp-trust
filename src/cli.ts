@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * trustscan: the mcp-trust CLI.
+ * sigil: the Sigil CLI.
  *
  * Commands:
- *   trustscan scan <target> [options]   scan an MCP server
- *   trustscan keygen [--out <dir>]       generate an Ed25519 signing key
- *   trustscan verify <badge.json>        verify a signed trust badge
- *   trustscan publish --badge <file>     submit a badge to the trust index
+ *   sigil scan <target> [options]   scan an MCP server
+ *   sigil keygen [--out <dir>]       generate an Ed25519 signing key
+ *   sigil verify <badge.json>        verify a signed trust badge
+ *   sigil publish --badge <file>     submit a badge to the trust index
  *
  * Exit codes: 0 = scan passed the risk gate; 2 = risk at or above --fail-on;
  * 1 = operational error (bad args, unresolvable target, IO failure).
@@ -63,10 +63,10 @@ function packageVersion(): string {
 const VERSION = packageVersion();
 
 function printHelp(): void {
-	console.log(`trustscan ${VERSION}: trust scanning for MCP servers.
+	console.log(`sigil ${VERSION}: trust scanning for MCP servers.
 
 Usage:
-  trustscan scan <target> [options]   Scan an MCP server.
+  sigil scan <target> [options]   Scan an MCP server.
     <target> is a local directory, an npm package spec (name[@version]),
     or a git URL (https://..., git@..., or owner/repo).
     --json            print the full JSON report instead of the summary
@@ -81,23 +81,23 @@ Usage:
     --publish         submit the signed badge to the public trust index
                       (implies --sign; needs the GitHub CLI, gh, authenticated)
 
-  trustscan keygen [--out <dir>]      Generate an Ed25519 signing key.
-  trustscan verify <badge.json> [--offline]
+  sigil keygen [--out <dir>]      Generate an Ed25519 signing key.
+  sigil verify <badge.json> [--offline]
       Verify a signed trust badge. Unless --offline, also checks the badge's
       status (active / superseded / revoked) against the public trust index.
-  trustscan publish --badge <file> [--repo <owner/repo>]
+  sigil publish --badge <file> [--repo <owner/repo>]
       Submit a signed badge to the public trust index
       (default repo: ${INDEX_REPO}) by opening a pull request.
       The badge is verified locally first; nothing is submitted when it
       is invalid. Needs the GitHub CLI (gh) installed and authenticated.
-  trustscan pin <server>[@<version>] [--index-url <url>]
+  sigil pin <server>[@<version>] [--index-url <url>]
       Resolve the verified install for an indexed server. Prints the exact
       install command for the newest active version (or the named version).
       Refuses revoked versions; warns on superseded ones.
-  trustscan install <server>[@<version>] [--dry-run] [--index-url <url>]
+  sigil install <server>[@<version>] [--dry-run] [--index-url <url>]
       Install the verified version (npm). Shows the badge summary first;
       --dry-run prints the command without running it.
-  trustscan revoke --server <s> --version <v> --reason <r>
+  sigil revoke --server <s> --version <v> --reason <r>
       --key <keyfile> [--out <file>]
       Sign a badge revocation with the project maintainer key. Submit the
       resulting JSON as revocations/<server>/<version>.json via PR.
@@ -175,7 +175,7 @@ function parseScanArgs(args: string[]): {
 		}
 	}
 	if (target === undefined)
-		throw new Error("scan needs a target: trustscan scan <target>");
+		throw new Error("scan needs a target: sigil scan <target>");
 	if (
 		options.keyPath === undefined &&
 		options.badgeOut === undefined &&
@@ -259,7 +259,7 @@ async function cmdScan(rawArgs: string[]): Promise<number> {
 				writeFileSync(badgePath, `${badgeJson}\n`);
 				if (!options.json) console.log(`badge written to ${badgePath}`);
 			} else if (options.publish) {
-				const dir = mkdtempSync(join(tmpdir(), "trustscan-badge-"));
+				const dir = mkdtempSync(join(tmpdir(), "sigil-badge-"));
 				badgePath = join(dir, "badge.json");
 				writeFileSync(badgePath, `${badgeJson}\n`);
 			} else {
@@ -313,7 +313,7 @@ function cmdVerify(rawArgs: string[]): Promise<number> {
 		}
 	}
 	if (badgePath === undefined) {
-		throw new Error("verify needs a badge file: trustscan verify <badge.json>");
+		throw new Error("verify needs a badge file: sigil verify <badge.json>");
 	}
 	const badge = JSON.parse(
 		readFileSync(resolve(badgePath), "utf8"),
@@ -388,7 +388,7 @@ function printPinResolution(
 	explicitVersion: boolean,
 ): void {
 	const fc = badge.findingCounts;
-	console.log(`trustscan pin: ${badge.server}@${badge.version}`);
+	console.log(`sigil pin: ${badge.server}@${badge.version}`);
 	console.log(`  install:   ${installCommandFor(badge)}`);
 	const integrity = badge.artifact?.integrity;
 	console.log(`  integrity: ${integrity ?? "(not recorded)"}`);
@@ -423,7 +423,7 @@ async function cmdPin(rawArgs: string[]): Promise<number> {
 		}
 	}
 	if (target === undefined) {
-		throw new Error("pin needs a server: trustscan pin <server>[@<version>]");
+		throw new Error("pin needs a server: sigil pin <server>[@<version>]");
 	}
 	const { server, version } = parseServerAtVersion(target);
 	const manifest = await fetchManifest(indexUrl);
@@ -453,7 +453,7 @@ async function cmdInstall(rawArgs: string[]): Promise<number> {
 	}
 	if (target === undefined) {
 		throw new Error(
-			"install needs a server: trustscan install <server>[@<version>]",
+			"install needs a server: sigil install <server>[@<version>]",
 		);
 	}
 	const { server, version } = parseServerAtVersion(target);
@@ -556,9 +556,7 @@ async function cmdPublish(rawArgs: string[]): Promise<number> {
 		} else throw new Error(`unknown flag ${arg}`);
 	}
 	if (badgePath === undefined) {
-		throw new Error(
-			"publish needs a badge file: trustscan publish --badge <file>",
-		);
+		throw new Error("publish needs a badge file: sigil publish --badge <file>");
 	}
 	const result = await publishBadge(badgePath, repo ? { repo } : {});
 	console.log(`badge submitted: ${result.prUrl}`);
@@ -599,7 +597,7 @@ async function main(): Promise<number> {
 		}
 	} catch (error) {
 		console.error(
-			`trustscan: ${error instanceof Error ? error.message : String(error)}`,
+			`sigil: ${error instanceof Error ? error.message : String(error)}`,
 		);
 		return 1;
 	}
@@ -611,7 +609,7 @@ if (isMain) {
 		(code) => process.exit(code),
 		(error) => {
 			console.error(
-				`trustscan: ${error instanceof Error ? error.message : String(error)}`,
+				`sigil: ${error instanceof Error ? error.message : String(error)}`,
 			);
 			process.exit(1);
 		},

@@ -39,7 +39,7 @@ async function runCli(args: string[]): Promise<RunResult> {
 	}
 }
 
-describe("trustscan scan (end to end against the fixture server)", () => {
+describe("sigil scan (end to end against the fixture server)", () => {
 	it("exits 2 and reports critical risk on the intentionally sketchy fixture", async () => {
 		const result = await runCli([
 			"scan",

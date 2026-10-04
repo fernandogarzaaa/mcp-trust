@@ -75,7 +75,7 @@ export interface McpConnection {
 export type McpConnector = (target: string) => Promise<McpConnection>;
 
 const CLIENT_INFO: Implementation = {
-	name: "mcp-trust-evaluator",
+	name: "sigil-evaluator",
 	version: "0.1.0",
 };
 const DEFAULT_CALL_TIMEOUT_MS = 10_000;

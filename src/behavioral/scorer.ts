@@ -4,7 +4,7 @@
  * The penalty schedule (critical 25 / major 12 / minor 4 / info 1,
  * starting from 100, clamped to 0..100) is EVE's session-scorer schedule,
  * documented in experience-validation-engine's src/mcpEval/evaluate.ts and
- * ported here so mcp-trust stays dependency-free. The evidence selection
+ * ported here so Sigil stays dependency-free. The evidence selection
  * (top deductions by severity) is a simplified local equivalent: EVE's
  * full scorer threads findings through its global registries, which is
  * session-report plumbing rather than scoring semantics.
