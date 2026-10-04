@@ -1,4 +1,4 @@
-# Contributing to mcp-trust
+# Contributing to Sigil
 
 ## Development
 
@@ -33,7 +33,7 @@ npm run lint       # biome check
 - Badge format changes must stay backward compatible for verification:
   old badges (without newer optional fields) still verify.
 - The index validator (`scripts/validate.mjs` in
-  [mcp-trust-index](https://github.com/fernandogarzaaa/mcp-trust-index))
+  [sigil-index](https://github.com/fernandogarzaaa/sigil-index))
   is the other half of any badge-format change; update both together.
 - Never commit a private key. The project signing key lives outside the
   repo; only its public key is published at `keys/project.json` in the
@@ -44,11 +44,11 @@ npm run lint       # biome check
 Some paths need a human with credentials; they are unit-tested but not
 exercised in CI:
 
-- `trustscan publish` against a real authenticated `gh` (CI and this
+- `sigil publish` against a real authenticated `gh` (CI and this
   environment lack GitHub CLI auth): run
-  `trustscan publish --badge <file>` with `gh auth login` done, and
+  `sigil publish --badge <file>` with `gh auth login` done, and
   confirm the PR opens.
-- `trustscan install` actually installing: run with `--dry-run` in CI;
+- `sigil install` actually installing: run with `--dry-run` in CI;
   a human should confirm a real install once per release.
 
 ## Releases

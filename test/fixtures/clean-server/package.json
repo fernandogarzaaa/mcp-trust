@@ -1,6 +1,6 @@
 {
 	"bin": "./server.js",
-	"description": "Well-behaved MCP server used as a trustscan test fixture. Expect a clean scan.",
+	"description": "Well-behaved MCP server used as a sigil test fixture. Expect a clean scan.",
 	"license": "MIT",
 	"name": "clean-server",
 	"private": true,

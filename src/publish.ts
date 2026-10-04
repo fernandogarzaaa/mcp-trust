@@ -1,6 +1,6 @@
 /**
- * trustscan publish: submit a signed trust badge to the public trust index
- * (fernandogarzaaa/mcp-trust-index) by opening a pull request.
+ * sigil publish: submit a signed trust badge to the public trust index
+ * (fernandogarzaaa/sigil-index) by opening a pull request.
  *
  * Flow: local verify first, then via the GitHub CLI (gh): clone the index
  * repo to a temp dir, add badges/<server>/<version>.json on a new branch,
@@ -24,7 +24,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { type TrustBadge, verifyBadge } from "./sign.js";
 
-export const INDEX_REPO = "fernandogarzaaa/mcp-trust-index";
+export const INDEX_REPO = "fernandogarzaaa/sigil-index";
 export const INDEX_BRANCH = "main";
 
 /**
@@ -70,7 +70,7 @@ export function publishPrTitle(badge: TrustBadge): string {
 export function publishPrBody(badge: TrustBadge): string {
 	const fc = badge.findingCounts;
 	return [
-		"Trust badge submission via trustscan.",
+		"Trust badge submission via sigil.",
 		"",
 		`- Server: ${badge.server} @ ${badge.version}`,
 		`- Risk: ${badge.riskScore}/100 (${badge.riskLevel})`,
@@ -122,7 +122,7 @@ export const defaultRun: RunFn = (cmd, args, opts) =>
 					if (err.code === "ENOENT") {
 						reject(
 							new Error(
-								`command not found: "${cmd}". trustscan publish needs the GitHub CLI (gh): install it from https://cli.github.com and run \`gh auth login\`.`,
+								`command not found: "${cmd}". sigil publish needs the GitHub CLI (gh): install it from https://cli.github.com and run \`gh auth login\`.`,
 							),
 						);
 						return;
@@ -154,7 +154,7 @@ async function ghUsername(run: RunFn): Promise<string> {
 	} catch {
 		// fall through to default
 	}
-	return "trustscan";
+	return "sigil";
 }
 
 /** Returns true when the badge path already exists in the index repo. */
@@ -173,7 +173,7 @@ async function badgeAlreadyIndexed(
 }
 
 export interface PublishOptions {
-	/** Index repo override, default fernandogarzaaa/mcp-trust-index. */
+	/** Index repo override, default fernandogarzaaa/sigil-index. */
 	repo?: string;
 	run?: RunFn;
 	/** Keep the temp clone for debugging instead of deleting it. */
@@ -223,7 +223,7 @@ export async function publishBadge(
 		);
 	}
 
-	const parentDir = mkdtempSync(join(tmpdir(), "trustscan-publish-"));
+	const parentDir = mkdtempSync(join(tmpdir(), "sigil-publish-"));
 	const workdir = join(parentDir, "index");
 	try {
 		await run("gh", ["repo", "clone", repo, workdir]);

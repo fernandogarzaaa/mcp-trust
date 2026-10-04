@@ -1,28 +1,28 @@
-# mcp-trust
+# Sigil
 
-[![ci](https://github.com/fernandogarzaaa/mcp-trust/actions/workflows/ci.yml/badge.svg)](https://github.com/fernandogarzaaa/mcp-trust/actions/workflows/ci.yml)
+[![ci](https://github.com/fernandogarzaaa/sigil/actions/workflows/ci.yml/badge.svg)](https://github.com/fernandogarzaaa/sigil/actions/workflows/ci.yml)
 
 Trust scanning for MCP servers: static heuristics plus behavioral evals, with signed version-pinned trust badges. The place you check before you install an MCP server.
 
-Existing scanners audit code statically. mcp-trust adds what they do not: it **runs the server** (schema, conformance, and seeded fuzz oracles ported from [EVE](https://github.com/fernandogarzaaa/experience-validation-engine)'s mcp-eval harness) and publishes the result as a **signed, version-pinned badge** anyone can verify without key management.
+Existing scanners audit code statically. Sigil adds what they do not: it **runs the server** (schema, conformance, and seeded fuzz oracles ported from [EVE](https://github.com/fernandogarzaaa/experience-validation-engine)'s mcp-eval harness) and publishes the result as a **signed, version-pinned badge** anyone can verify without key management.
 
 ## Install
 
 Requires Node.js 20 or later.
 
-> **Note:** `mcp-trust` is not published to npm yet. The commands below show the intended install path; until release, run from source.
+> **Note:** `sigil` is not published to npm yet. The commands below show the intended install path; until release, run from source.
 
 ```bash
-npm install -g mcp-trust
+npm install -g sigil
 # or run without installing
-npx mcp-trust scan ./my-server
+npx sigil scan ./my-server
 ```
 
 From source:
 
 ```bash
-git clone https://github.com/fernandogarzaaa/mcp-trust.git
-cd mcp-trust
+git clone https://github.com/fernandogarzaaa/sigil.git
+cd sigil
 npm install
 npm run build
 node dist/cli.js scan ./my-server
@@ -34,56 +34,56 @@ Check a server before you install it, using the public trust index:
 
 ```bash
 # See the verified install for a server (newest active version)
-trustscan pin @modelcontextprotocol/server-filesystem
+sigil pin @modelcontextprotocol/server-filesystem
 # Pin an exact version
-trustscan pin @modelcontextprotocol/server-filesystem@2025.1.0
+sigil pin @modelcontextprotocol/server-filesystem@2025.1.0
 # Install the verified version (shows the badge first)
-trustscan install @modelcontextprotocol/server-filesystem --dry-run
+sigil install @modelcontextprotocol/server-filesystem --dry-run
 ```
 
 Scan a server yourself and publish the badge:
 
 ```bash
-trustscan scan ./my-server --sign --badge-out my-server.trust.json
-trustscan verify my-server.trust.json
-trustscan publish --badge my-server.trust.json
+sigil scan ./my-server --sign --badge-out my-server.trust.json
+sigil verify my-server.trust.json
+sigil publish --badge my-server.trust.json
 ```
 
 ## Usage
 
 ```bash
 # Scan a local directory (also accepts an npm spec or git URL)
-trustscan scan ./my-mcp-server
-trustscan scan express-mcp-server@1.2.3
-trustscan scan https://github.com/org/server.git
+sigil scan ./my-mcp-server
+sigil scan express-mcp-server@1.2.3
+sigil scan https://github.com/org/server.git
 
 # CI gating: exit 2 when risk reaches the threshold (default: high)
-trustscan scan ./my-mcp-server --fail-on high
+sigil scan ./my-mcp-server --fail-on high
 
 # Full JSON report
-trustscan scan ./my-mcp-server --json
+sigil scan ./my-mcp-server --json
 
 # Sign a badge with your key (see keygen below)
-trustscan keygen
-trustscan scan ./my-mcp-server --sign --badge-out server.trust.json
-trustscan verify server.trust.json
+sigil keygen
+sigil scan ./my-mcp-server --sign --badge-out server.trust.json
+sigil verify server.trust.json
 
 # Publish a badge to the public trust index (opens a pull request)
-trustscan publish --badge server.trust.json
+sigil publish --badge server.trust.json
 # or scan, sign, and publish in one step
-trustscan scan ./my-mcp-server --sign --publish
+sigil scan ./my-mcp-server --sign --publish
 
 # Resolve the verified install from the public index
-trustscan pin my-server@1.2.3
-trustscan pin my-server              # newest active (non-revoked) version
+sigil pin my-server@1.2.3
+sigil pin my-server              # newest active (non-revoked) version
 # Install the verified version (npm); shows the badge summary first
-trustscan install my-server@1.2.3
-trustscan install my-server --dry-run   # preview only
+sigil install my-server@1.2.3
+sigil install my-server --dry-run   # preview only
 
 # Revoke a badge version (project maintainer key)
-trustscan revoke --server my-server --version 1.2.3 \
+sigil revoke --server my-server --version 1.2.3 \
   --reason "Signer key compromised" \
-  --key ~/.config/mcp-trust/project/key.priv.json \
+  --key ~/.config/sigil/project/key.priv.json \
   --out revocation.json
 # then open a PR adding revocations/my-server/1.2.3.json
 ```
@@ -96,11 +96,11 @@ Exit codes: `0` passed the gate (or the command succeeded), `2` risk at or above
 
 ## Trust Index
 
-Badges are more useful in public. The [mcp-trust-index](https://github.com/fernandogarzaaa/mcp-trust-index) is a git-backed public registry of signed badges at `badges/<server>/<version>.json`, browsable at <https://fernandogarzaaa.github.io/mcp-trust-index/>.
+Badges are more useful in public. The [sigil-index](https://github.com/fernandogarzaaa/sigil-index) is a git-backed public registry of signed badges at `badges/<server>/<version>.json`, browsable at <https://fernandogarzaaa.github.io/sigil-index/>.
 
-`trustscan publish --badge <file>` verifies the badge locally first, then opens a pull request against the index (needs the GitHub CLI, `gh`, installed and authenticated). CI checks every submitted badge: JSON schema, Ed25519 signature against the embedded public key, correct `badges/<server>/<version>.json` placement, and no duplicate versions. The index is append-only per version: a new scan of a new version adds a new file.
+`sigil publish --badge <file>` verifies the badge locally first, then opens a pull request against the index (needs the GitHub CLI, `gh`, installed and authenticated). CI checks every submitted badge: JSON schema, Ed25519 signature against the embedded public key, correct `badges/<server>/<version>.json` placement, and no duplicate versions. The index is append-only per version: a new scan of a new version adds a new file.
 
-Each badge carries a derived **status**: `active` (newest indexed version), `superseded` (an older version), or `revoked` (the project maintainer published a signed revocation at `revocations/<server>/<version>.json`). `trustscan pin` refuses revoked versions, and `trustscan verify` reports the status from the index.
+Each badge carries a derived **status**: `active` (newest indexed version), `superseded` (an older version), or `revoked` (the project maintainer published a signed revocation at `revocations/<server>/<version>.json`). `sigil pin` refuses revoked versions, and `sigil verify` reports the status from the index.
 
 A badge attests to the exact version scanned, nothing more. Trust in the signer (the key id) is out of band, like a PGP key id: the index proves a badge is intact and well-formed, not that its signer is honest.
 
@@ -127,7 +127,7 @@ A badge attests to the exact version scanned, nothing more. Trust in the signer 
 ## Example output
 
 ```
-trustscan: fixture-server@0.1.0 [local]
+sigil: fixture-server@0.1.0 [local]
 risk score: 0/100 (critical)
 findings: 16 total (1 critical, 6 major, 6 minor, 3 info)
 static: 10 findings over 4 tool(s) [runtime]

@@ -34,7 +34,7 @@ export interface FindingCounts {
 }
 
 export interface TrustReport {
-	readonly tool: "mcp-trust";
+	readonly tool: "sigil";
 	readonly toolVersion: string;
 	readonly target: string;
 	readonly targetKind: TargetKind;
@@ -100,7 +100,7 @@ export function assembleReport(args: {
 		args.behavioral,
 	);
 	return {
-		tool: "mcp-trust",
+		tool: "sigil",
 		toolVersion: args.toolVersion,
 		target: args.target,
 		targetKind: args.targetKind,
@@ -122,7 +122,7 @@ export function renderHumanSummary(report: TrustReport): string {
 	const serverLabel = report.server
 		? `${report.server.name}@${report.server.version}`
 		: (report.static.packageName ?? report.target);
-	lines.push(`trustscan: ${serverLabel} [${report.targetKind}]`);
+	lines.push(`sigil: ${serverLabel} [${report.targetKind}]`);
 	lines.push(`risk score: ${report.riskScore}/100 (${report.riskLevel})`);
 	const c = report.counts;
 	lines.push(

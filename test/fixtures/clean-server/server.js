@@ -1,5 +1,5 @@
 /**
- * Clean fixture MCP server for trustscan tests. Well-behaved on purpose:
+ * Clean fixture MCP server for sigil tests. Well-behaved on purpose:
  * described tools, valid schemas, honest annotations, input validation,
  * no secrets, no network calls. Expect a passing scan.
  */

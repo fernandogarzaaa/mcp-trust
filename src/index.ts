@@ -1,4 +1,4 @@
-/** mcp-trust public API (also usable as a library). */
+/** Sigil public API (also usable as a library). */
 export { evaluateMcpServer } from "./behavioral/index.js";
 export { runStaticPass } from "./static/index.js";
 export { assembleReport, renderHumanSummary } from "./report.js";

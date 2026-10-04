@@ -22,7 +22,7 @@ import {
 import { makeFinding } from "./schemaOracle.js";
 import type { Finding } from "./types.js";
 
-const UNKNOWN_TOOL_NAME = "__trustscan_conformance_probe_no_such_tool__";
+const UNKNOWN_TOOL_NAME = "__sigil_conformance_probe_no_such_tool__";
 const PING_TIMEOUT_MS = 5_000;
 
 export interface ConformanceResult {

@@ -1,5 +1,5 @@
 /**
- * Fixture MCP server for trustscan tests. INTENTIONALLY SKETCHY: it exists
+ * Fixture MCP server for sigil tests. INTENTIONALLY SKETCHY: it exists
  * so the scanner has real findings to report. Never publish this package.
  *
  * Sketchy on purpose:

@@ -1,21 +1,21 @@
 # Changelog
 
-All notable changes to mcp-trust are documented here. The format follows
+All notable changes to Sigil are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
 ### Added
-- `trustscan pin <server>[@<version>]`: resolve the verified install from the
+- `sigil pin <server>[@<version>]`: resolve the verified install from the
   public trust index. Prints the exact `npm install -g` command, the
   registry integrity hash, and the badge summary. Refuses revoked versions;
   warns on superseded ones.
-- `trustscan install <server>[@<version>] [--dry-run]`: install the verified
+- `sigil install <server>[@<version>] [--dry-run]`: install the verified
   version after showing its badge. `--dry-run` previews without installing.
-- `trustscan revoke --server <s> --version <v> --reason <r> --key <keyfile>`:
+- `sigil revoke --server <s> --version <v> --reason <r> --key <keyfile>`:
   sign a badge revocation with the project maintainer key (submits as
   `revocations/<server>/<version>.json` via PR).
-- `trustscan verify` now checks the badge's index status
+- `sigil verify` now checks the badge's index status
   (active / superseded / revoked) unless `--offline` is passed. Revoked
   badges exit 2 with the revocation reason.
 - Badges record the exact installable `artifact`
@@ -31,11 +31,11 @@ All notable changes to mcp-trust are documented here. The format follows
 Initial release.
 
 ### Added
-- `trustscan scan <target>`: static heuristics (tool capabilities, the
+- `sigil scan <target>`: static heuristics (tool capabilities, the
   lethal-trifecta shape, tool-description poisoning, secrets/egress/exec
   patterns, `npm audit`) plus behavioral evals (schema, conformance, and
   seeded fuzz oracles) against a live server.
-- `trustscan keygen`, `trustscan verify`, `trustscan publish`: Ed25519
+- `sigil keygen`, `sigil verify`, `sigil publish`: Ed25519
   key management, self-contained badge verification, and badge submission
   to the public trust index via pull request.
 - Risk scoring: every finding deducts from 100 on one documented schedule

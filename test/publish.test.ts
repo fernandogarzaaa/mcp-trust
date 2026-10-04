@@ -19,7 +19,7 @@ import { keygen, signBadge } from "../src/sign.js";
 
 function minimalReport(): TrustReport {
 	return {
-		tool: "mcp-trust",
+		tool: "sigil",
 		toolVersion: "0.1.0",
 		target: "fixture",
 		targetKind: "local",
@@ -51,10 +51,10 @@ function minimalReport(): TrustReport {
 }
 
 function signedBadgeFile(dir?: string): string {
-	const keyDir = mkdtempSync(join(tmpdir(), "trustscan-key-"));
+	const keyDir = mkdtempSync(join(tmpdir(), "sigil-key-"));
 	const { privatePath } = keygen(keyDir);
 	const badge = signBadge(minimalReport(), privatePath);
-	const outDir = dir ?? mkdtempSync(join(tmpdir(), "trustscan-badge-"));
+	const outDir = dir ?? mkdtempSync(join(tmpdir(), "sigil-badge-"));
 	const path = join(outDir, "badge.json");
 	writeFileSync(path, JSON.stringify(badge, null, 2));
 	return path;
@@ -79,7 +79,7 @@ function fakeRunner(
 			if (opts.ghPresent === false) {
 				// Same wording as defaultRun's ENOENT path.
 				const err = new Error(
-					'command not found: "gh". trustscan publish needs the GitHub CLI (gh): install it from https://cli.github.com and run `gh auth login`.',
+					'command not found: "gh". sigil publish needs the GitHub CLI (gh): install it from https://cli.github.com and run `gh auth login`.',
 				) as Error & { code: string };
 				err.code = "ENOENT";
 				throw err;
@@ -103,7 +103,7 @@ function fakeRunner(
 		}
 		if (cmd === "gh" && args[0] === "pr" && args[1] === "create") {
 			return {
-				stdout: "https://github.com/fernandogarzaaa/mcp-trust-index/pull/1\n",
+				stdout: "https://github.com/fernandogarzaaa/sigil-index/pull/1\n",
 				stderr: "",
 			};
 		}
@@ -174,7 +174,7 @@ describe("publishBadge", () => {
 		const { run, calls } = fakeRunner();
 		const result = await publishBadge(badgePath, { run });
 		expect(result.prUrl).toBe(
-			"https://github.com/fernandogarzaaa/mcp-trust-index/pull/1",
+			"https://github.com/fernandogarzaaa/sigil-index/pull/1",
 		);
 		expect(result.targetPath).toBe("badges/fixture-server/0.1.0.json");
 		expect(result.branch).toMatch(/^badge\/fixture-server-0\.1\.0-/);
@@ -182,17 +182,17 @@ describe("publishBadge", () => {
 		expect(script).toContain("gh --version");
 		expect(script).toContain("gh auth status");
 		expect(script).toContain(
-			"gh api repos/fernandogarzaaa/mcp-trust-index/contents/badges/fixture-server/0.1.0.json",
+			"gh api repos/fernandogarzaaa/sigil-index/contents/badges/fixture-server/0.1.0.json",
 		);
-		expect(script).toContain("gh repo clone fernandogarzaaa/mcp-trust-index");
+		expect(script).toContain("gh repo clone fernandogarzaaa/sigil-index");
 		expect(script).toContain("git checkout -b badge/fixture-server-0.1.0-");
 		expect(script).toContain("git push -u origin badge/fixture-server-0.1.0-");
 		expect(script).toContain("gh pr create");
-		expect(script).toContain("--repo fernandogarzaaa/mcp-trust-index");
+		expect(script).toContain("--repo fernandogarzaaa/sigil-index");
 	});
 
 	it("refuses to submit an invalid badge before touching gh", async () => {
-		const dir = mkdtempSync(join(tmpdir(), "trustscan-badge-"));
+		const dir = mkdtempSync(join(tmpdir(), "sigil-badge-"));
 		const path = join(dir, "badge.json");
 		writeFileSync(path, JSON.stringify({ type: "nope" }));
 		const { run, calls } = fakeRunner();
@@ -233,6 +233,6 @@ describe("publishBadge", () => {
 		const { run, calls } = fakeRunner();
 		await publishBadge(badgePath, { run, repo: "someone/else-index" });
 		expect(calls.join("\n")).toContain("--repo someone/else-index");
-		expect(INDEX_REPO).toBe("fernandogarzaaa/mcp-trust-index");
+		expect(INDEX_REPO).toBe("fernandogarzaaa/sigil-index");
 	});
 });
