@@ -10,12 +10,10 @@ Existing scanners audit code statically. Sigil adds what they do not: it **runs 
 
 Requires Node.js 20 or later.
 
-> **Note:** `sigil` is not published to npm yet. The commands below show the intended install path; until release, run from source.
-
 ```bash
-npm install -g sigil
+npm install -g sigil-mcp
 # or run without installing
-npx sigil scan ./my-server
+npx -p sigil-mcp sigil scan ./my-server
 ```
 
 From source:

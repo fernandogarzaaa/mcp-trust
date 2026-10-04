@@ -12,7 +12,7 @@
  * 1 = operational error (bad args, unresolvable target, IO failure).
  */
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -603,7 +603,21 @@ async function main(): Promise<number> {
 	}
 }
 
-const isMain = process.argv[1] === fileURLToPath(import.meta.url);
+function isMainModule(): boolean {
+	const entry = process.argv[1];
+	if (!entry) return false;
+	try {
+		// npm installs bins as symlinks: argv[1] is the unresolved link path
+		// (e.g. <pkg>/node_modules/.bin/sigil) while import.meta.url is the
+		// real path. Compare realpaths so the CLI starts when invoked
+		// through the installed symlink.
+		return realpathSync(entry) === fileURLToPath(import.meta.url);
+	} catch {
+		return false;
+	}
+}
+
+const isMain = isMainModule();
 if (isMain) {
 	main().then(
 		(code) => process.exit(code),
