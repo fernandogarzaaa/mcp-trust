@@ -1,6 +1,7 @@
 # Sigil
 
 [![ci](https://github.com/fernandogarzaaa/sigil/actions/workflows/ci.yml/badge.svg)](https://github.com/fernandogarzaaa/sigil/actions/workflows/ci.yml)
+[![Listed on mcpservers.org](https://mcpservers.org/badge.svg)](https://mcpservers.org/servers/fernandogarzaaa/sigil)
 
 Trust scanning for MCP servers: static heuristics plus behavioral evals, with signed version-pinned trust badges. The place you check before you install an MCP server.
 
