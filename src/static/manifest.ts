@@ -47,6 +47,31 @@ const CONVENTIONAL_FILES = [
 	"build/server.js",
 ];
 
+/**
+ * Pick the server launcher from a multi-entry `bin` map.
+ *
+ * Packages often ship a CLI next to the MCP server (`{"tool": "cli.js",
+ * "tool-mcp": "mcp.js"}`). Spawning the CLI makes the behavioral pass hang
+ * or fail, so prefer a bin whose name says it is the MCP server, then one
+ * that says "server", then the first entry (the previous behavior).
+ */
+export function pickServerBin(
+	bin: Record<string, unknown>,
+): { name: string; path: string } | null {
+	const entries = Object.entries(bin).filter(
+		(e): e is [string, string] => typeof e[1] === "string" && e[1].length > 0,
+	);
+	if (entries.length === 0) return null;
+	const byName = (re: RegExp) => entries.find(([name]) => re.test(name));
+	const chosen =
+		byName(/(^|[-_.])mcp($|[-_.])/i) ??
+		byName(/mcp/i) ??
+		byName(/server/i) ??
+		entries[0];
+	if (!chosen) return null;
+	return { name: chosen[0], path: chosen[1] };
+}
+
 export function readManifest(root: string): ServerManifest {
 	const absRoot = resolve(root);
 	const pkg = readJsonFile(join(absRoot, "package.json"));
@@ -75,10 +100,13 @@ export function readManifest(root: string): ServerManifest {
 			entry = join(absRoot, bin);
 			entrySource = "package.json bin";
 		} else if (isRecord(bin)) {
-			const first = Object.values(bin).find((v) => typeof v === "string");
-			if (typeof first === "string") {
-				entry = join(absRoot, first);
-				entrySource = "package.json bin";
+			const picked = pickServerBin(bin);
+			if (picked !== null) {
+				entry = join(absRoot, picked.path);
+				entrySource =
+					Object.keys(bin).length > 1
+						? `package.json bin (${picked.name})`
+						: "package.json bin";
 			}
 		}
 		if (entry === null && typeof pkg.main === "string" && pkg.main.length > 0) {
