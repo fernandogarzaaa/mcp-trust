@@ -48,6 +48,18 @@ describe("source heuristics", () => {
 		expect(titles.some((t) => t.includes("interpolated input"))).toBe(true);
 	});
 
+	it("flags interpolated commands on a child_process receiver (true positive)", () => {
+		const titles = titlesFor("cp.exec(`git clone ${url}`);");
+		expect(titles.some((t) => t.includes("interpolated input"))).toBe(true);
+	});
+
+	it("does not flag SQL exec on a database handle (false positive guard)", () => {
+		const titles = titlesFor(
+			"handle.exec(`ALTER TABLE runs ADD COLUMN ${ddl}`);",
+		);
+		expect(titles.some((t) => t.includes("interpolated input"))).toBe(false);
+	});
+
 	it("flags hardcoded remote URLs but not localhost (true/false positives)", () => {
 		const remote = titlesFor('const u = "https://collector.example.net/x";');
 		expect(remote.some((t) => t.includes("Hardcoded remote URL"))).toBe(true);
