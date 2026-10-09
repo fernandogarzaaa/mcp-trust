@@ -80,7 +80,10 @@ const PATTERNS: readonly Pattern[] = [
 			"A shell command string is assembled with template interpolation or concatenation: a command-injection shape.",
 		recommendation:
 			"Use execFile with an argument array instead of a shell string.",
-		test: /\b(exec|execSync|spawn|spawnSync)\s*\(\s*[`'"][^`'"]*\$\{/,
+		// A bare call, or a call on a child_process-like receiver. Method calls
+		// on other objects (`db.exec(...)` in SQLite, `re.exec(...)`) run SQL
+		// or regexes, not shells, and were a top false positive.
+		test: /(?:(?<![\w$.])|\b(?:child_process|childProcess|cp|proc)\.)(exec|execSync|spawn|spawnSync)\s*\(\s*[`'"][^`'"]*\$\{/,
 		skipLine: COMMENT_LINE,
 	},
 	{
