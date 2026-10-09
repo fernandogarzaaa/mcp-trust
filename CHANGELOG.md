@@ -5,6 +5,20 @@ All notable changes to Sigil are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- Scanning a package whose `bin` map lists a CLI before the MCP server
+  (e.g. `{"godmode": ..., "godmode-mcp": ...}`) no longer spawns the CLI:
+  Sigil now prefers a bin named like `*-mcp`, then `*server*`, then the
+  first entry.
+- The behavioral pass no longer hangs forever when the target never
+  answers `initialize`: the handshake is bounded (30s) and the spawned
+  child is closed on failure, so the scan falls back to static-only.
+- Server stderr is captured instead of inherited, so fuzzed payloads the
+  server logs no longer flood the scan output. A short tail is attached
+  to handshake errors; set `SIGIL_SERVER_STDERR=inherit` to see all of it.
+- Fewer false positives: ``db.exec(`...${x}`)`` and other non-child_process
+  `.exec()` method calls are no longer reported as shell injection.
+
 ### Added
 - `sigil pin <server>[@<version>]`: resolve the verified install from the
   public trust index. Prints the exact `npm install -g` command, the
