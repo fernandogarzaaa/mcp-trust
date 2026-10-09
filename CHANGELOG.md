@@ -22,6 +22,10 @@ All notable changes to Sigil are documented here. The format follows
   (`{ type: "npm" | "git" | "local", spec, integrity? }`) so pins are
   reproducible.
 
+- Dependabot config for npm and GitHub Actions (weekly).
+- `SECURITY.md` with a private vulnerability-reporting contact.
+- `.env.example` listing the environment variables Sigil reads (`SIGIL_SKIP_AUDIT`).
+
 ### Changed
 - The public trust index derives a per-badge status and shows it on the
   site and in the machine-readable manifest.
