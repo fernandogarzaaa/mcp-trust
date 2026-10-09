@@ -2,9 +2,9 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
-	type IndexManifest,
 	compareVersions,
 	fetchManifest,
+	type IndexManifest,
 	installCommandFor,
 	resolvePin,
 } from "../src/registry.js";

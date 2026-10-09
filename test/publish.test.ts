@@ -2,18 +2,17 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { TrustBadge } from "../src/publish.js";
+import type { RunFn, RunResult, TrustBadge } from "../src/publish.js";
 import {
+	badgeTargetPath,
 	CommandError,
 	INDEX_REPO,
-	badgeTargetPath,
 	publishBadge,
 	publishBranchName,
 	publishPrBody,
 	publishPrTitle,
 	sanitizeSegment,
 } from "../src/publish.js";
-import type { RunFn, RunResult } from "../src/publish.js";
 import type { TrustReport } from "../src/report.js";
 import { keygen, signBadge } from "../src/sign.js";
 

@@ -11,8 +11,8 @@
  */
 
 import {
-	DIMENSIONS,
 	DIMENSION_FOR_CATEGORY,
+	DIMENSIONS,
 	type Dimension,
 	type DimensionScore,
 	type Finding,

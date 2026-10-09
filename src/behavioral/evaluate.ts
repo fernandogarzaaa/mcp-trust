@@ -12,8 +12,8 @@ import { checkConformance } from "./conformanceOracle.js";
 import { type FuzzOptions, fuzzTools } from "./fuzzOracle.js";
 import {
 	type ConnectOptions,
-	type McpConnector,
 	connectMcpServer,
+	type McpConnector,
 } from "./mcpConnection.js";
 import { checkToolSchemas, resetFindingIds } from "./schemaOracle.js";
 import { scoreAllDimensions } from "./scorer.js";
