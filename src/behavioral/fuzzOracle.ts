@@ -19,11 +19,11 @@
  */
 
 import {
-	type McpConnection,
 	isConnectionClosedError,
 	isTimeoutError,
+	type McpConnection,
 } from "./mcpConnection.js";
-import { type Rng, createRng, seedFromString } from "./rng.js";
+import { createRng, type Rng, seedFromString } from "./rng.js";
 import type { AdvertisedTool } from "./schemaOracle.js";
 import { makeFinding } from "./schemaOracle.js";
 import type { Finding, FuzzStats } from "./types.js";

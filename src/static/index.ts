@@ -11,7 +11,7 @@ import { readFileSync } from "node:fs";
 import { relative } from "node:path";
 import { listSourceFiles } from "../resolve.js";
 import { auditDependencies } from "./audit.js";
-import { type ToolDescriptor, checkCapabilities } from "./capabilities.js";
+import { checkCapabilities, type ToolDescriptor } from "./capabilities.js";
 import { extractToolsFromFile } from "./extract.js";
 import { hitsToFindings, scanLines } from "./heuristics.js";
 import { readManifest } from "./manifest.js";
@@ -129,5 +129,5 @@ export async function runStaticPass(
 	};
 }
 
-export type { StaticFinding, StaticReport };
 export { readManifest, type ServerManifest } from "./manifest.js";
+export type { StaticFinding, StaticReport };

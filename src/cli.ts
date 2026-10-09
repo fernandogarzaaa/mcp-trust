@@ -12,8 +12,12 @@
  * 1 = operational error (bad args, unresolvable target, IO failure).
  */
 
-import { readFileSync, realpathSync, writeFileSync } from "node:fs";
-import { mkdtempSync } from "node:fs";
+import {
+	mkdtempSync,
+	readFileSync,
+	realpathSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,30 +25,29 @@ import { resolveArtifact } from "./artifact.js";
 import { evaluateMcpServer } from "./behavioral/index.js";
 import { INDEX_REPO, publishBadge } from "./publish.js";
 import {
-	type IndexManifest,
-	type ManifestBadge,
 	fetchManifest,
+	type IndexManifest,
 	installCommandFor,
+	type ManifestBadge,
 	resolvePin,
 } from "./registry.js";
 import {
+	assembleReport,
 	RISK_LEVELS,
 	type RiskLevel,
-	assembleReport,
 	renderHumanSummary,
 } from "./report.js";
-import { type TargetKind, classifyTarget, resolveTarget } from "./resolve.js";
+import { classifyTarget, resolveTarget, type TargetKind } from "./resolve.js";
 import {
-	type TrustBadge,
-	type TrustRevocation,
 	keygen,
 	signBadge,
 	signRevocation,
+	type TrustBadge,
+	type TrustRevocation,
 	verifyBadge,
 	verifyRevocation,
 } from "./sign.js";
-import { readManifest } from "./static/index.js";
-import { runStaticPass } from "./static/index.js";
+import { readManifest, runStaticPass } from "./static/index.js";
 
 function packageVersion(): string {
 	try {

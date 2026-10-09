@@ -15,9 +15,9 @@
  */
 
 import {
-	type McpConnection,
 	isConnectionClosedError,
 	isTimeoutError,
+	type McpConnection,
 } from "./mcpConnection.js";
 import { makeFinding } from "./schemaOracle.js";
 import type { Finding } from "./types.js";
