@@ -87,6 +87,8 @@ sigil revoke --server my-server --version 1.2.3 \
 # then open a PR adding revocations/my-server/1.2.3.json
 ```
 
+Set `SIGIL_SERVER_STDERR=inherit` to stream the scanned server's own stderr (it is captured by default so fuzzed payloads do not flood the output).
+
 Options for `scan`: `--json`, `--sign`, `--key <path>`, `--badge-out <path>`, `--publish`, `--fail-on <low|medium|high|critical>`, `--no-fuzz`, `--skip-audit`, `--timeout <ms>`.
 
 `verify` also checks the badge against the public trust index (use `--offline` to skip): revoked badges exit 2 with the reason, superseded ones warn.

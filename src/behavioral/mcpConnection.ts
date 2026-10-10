@@ -79,6 +79,13 @@ const CLIENT_INFO: Implementation = {
 	version: "0.1.0",
 };
 const DEFAULT_CALL_TIMEOUT_MS = 10_000;
+/**
+ * Upper bound on the initialize handshake. A target that never answers
+ * (for example a CLI entry that opens a browser instead of speaking MCP)
+ * must fail the behavioral pass, not hang the whole scan.
+ */
+export const DEFAULT_CONNECT_TIMEOUT_MS = 30_000;
+const STDERR_TAIL_CHARS = 4_096;
 
 /** Minimal shell-like tokenizer: honors single/double-quoted arguments. */
 export function tokenizeCommand(command: string): string[] {
@@ -100,21 +107,33 @@ class SdkMcpConnection implements McpConnection {
 
 	private constructor(
 		readonly target: string,
-		transport: Transport,
+		private readonly transport: Transport,
+		connectTimeoutMs: number,
 	) {
 		this.client = new Client(CLIENT_INFO, { capabilities: {} });
 		this.client.onclose = () => {
 			this.isClosed = true;
 		};
-		this.connectPromise = this.client.connect(transport);
+		this.connectPromise = this.client.connect(transport, {
+			timeout: connectTimeoutMs,
+		});
 	}
 
 	static async open(
 		target: string,
 		transport: Transport,
+		connectTimeoutMs = DEFAULT_CONNECT_TIMEOUT_MS,
 	): Promise<SdkMcpConnection> {
-		const conn = new SdkMcpConnection(target, transport);
-		await conn.connectPromise;
+		const conn = new SdkMcpConnection(target, transport, connectTimeoutMs);
+		try {
+			await conn.connectPromise;
+		} catch (error) {
+			// Without this the spawned child keeps running after a failed
+			// handshake and holds the scanner's event loop open forever.
+			await conn.transport.close().catch(() => {});
+			conn.isClosed = true;
+			throw error;
+		}
 		return conn;
 	}
 
@@ -193,6 +212,8 @@ export interface ConnectOptions {
 	cwd?: string;
 	/** Environment for a spawned stdio server (defaults to process.env). */
 	env?: Record<string, string>;
+	/** Bound on the initialize handshake (default 30s). */
+	connectTimeoutMs?: number;
 }
 
 /**
@@ -210,20 +231,40 @@ export async function connectMcpServer(
 		return SdkMcpConnection.open(
 			target,
 			new StreamableHTTPClientTransport(new URL(target)),
+			options.connectTimeoutMs,
 		);
 	}
 	const [command, ...args] = tokenizeCommand(target);
 	if (!command) throw new Error(`empty MCP target command in "${target}"`);
-	return SdkMcpConnection.open(
-		target,
-		new StdioClientTransport({
-			command,
-			args,
-			stderr: "inherit",
-			cwd: options.cwd,
-			env: options.env,
-		}),
-	);
+	// Capture the server's stderr instead of inheriting it: fuzzed calls make
+	// many servers log the (up to 64 KB) adversarial payloads, which used to
+	// flood the scanner's own output. Keep a short tail for error messages,
+	// or set SIGIL_SERVER_STDERR=inherit to see everything.
+	const inherit = process.env.SIGIL_SERVER_STDERR === "inherit";
+	const transport = new StdioClientTransport({
+		command,
+		args,
+		stderr: inherit ? "inherit" : "pipe",
+		cwd: options.cwd,
+		env: options.env,
+	});
+	let stderrTail = "";
+	transport.stderr?.on("data", (chunk: Buffer | string) => {
+		stderrTail = (stderrTail + String(chunk)).slice(-STDERR_TAIL_CHARS);
+	});
+	try {
+		return await SdkMcpConnection.open(
+			target,
+			transport,
+			options.connectTimeoutMs,
+		);
+	} catch (error) {
+		const tail = stderrTail.trim();
+		if (tail.length > 0 && error instanceof Error) {
+			error.message = `${error.message} (server stderr: ${tail.slice(-500)})`;
+		}
+		throw error;
+	}
 }
 
 /**
